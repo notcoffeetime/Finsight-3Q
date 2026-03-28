@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finsight App</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- ─────────────────────────────────────────────
+     FIREBASE SDK  (v9 compat build via CDN)
+     We use the compat build so we can call
+     firebase.initializeApp() in plain script tags
+     without a bundler like Vite/Webpack.
+───────────────────────────────────────────── -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/prop-types@15.8.1/prop-types.js"></script>
+<script src="https://unpkg.com/recharts@2.1.16/umd/Recharts.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+/* ─── RESET & TOKENS ─────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:       #0a0a0a;   /* page background          */
+  --surface:  #111111;   /* card / sidebar background */
+  --surface2: #161616;   /* nested surfaces           */
+  --border:   rgba(255,255,255,0.08);
+  --border-h: rgba(255,255,255,0.14);
+  --text:     #ededee;
+  --muted:    #888;
+  --muted2:   #444;
+  --accent:   #014221;   /* brand green (dark)        */
+  --accent-h: #016b35;   /* brand green hover         */
+  --accent-t: #4ade80;   /* readable green on dark bg */
+  --accent-d: rgba(1,66,33,0.18);
+  --accent-b: rgba(1,66,33,0.3);
+  --red:      #f87171;
+  --amber:    #fbbf24;
+  --blue:     #60a5fa;
+}
+html, body, #root { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Geist', -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+input, textarea, select, button {
+  font-family: inherit;
+  font-size: inherit;
+}
+button { cursor: pointer; }
+
+/* ─── SCROLLBAR ──────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--muted2); border-radius: 3px; }
+
+/* ─── AUTH SCREEN ────────────────────────────── */
+.auth-wrap {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 2rem;
+  background: var(--bg);
+}
+.auth-card {
+  width: 100%; max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 2.5rem;
+}
+.auth-logo {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.4rem;
+  margin-bottom: 2rem;
+}
+.auth-logo-mark {
+  width: 28px; height: 28px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.auth-logo-mark svg { width: 14px; height: 14px; }
+.auth-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.35rem; }
+.auth-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 1.75rem; }
+.field { margin-bottom: 1rem; }
+.field label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.4rem; font-weight: 500; }
+.field input {
+  width: 100%; padding: 0.65rem 0.9rem;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text);
+  transition: border-color 0.15s;
+  outline: none;
+}
+.field input:focus { border-color: var(--accent-t); }
+.btn-full {
+  width: 100%; padding: 0.75rem;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 8px;
+  font-weight: 600; font-size: 0.9rem;
+  transition: background 0.15s;
+  margin-top: 0.5rem;
+}
+.btn-full:hover { background: var(--accent-h); }
+.auth-switch { font-size: 0.8rem; color: var(--muted); text-align: center; margin-top: 1.25rem; }
+.auth-switch button { background: none; border: none; color: var(--accent-t); font-weight: 500; padding: 0; }
+.auth-err { font-size: 0.8rem; color: var(--red); margin-bottom: 0.75rem; padding: 0.6rem 0.8rem; background: rgba(248,113,113,0.08); border-radius: 6px; border: 1px solid rgba(248,113,113,0.2); }
+
+/* ─── ONBOARDING ─────────────────────────────── */
+.onboard-wrap {
+  min-height: 100vh; display: flex;
+  align-items: center; justify-content: center; padding: 2rem;
+}
+.onboard-card {
+  width: 100%; max-width: 480px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 2.5rem;
+}
+.onboard-step { font-size: 0.72rem; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem; }
+.onboard-title { font-family: 'Instrument Serif', serif; font-size: 1.8rem; font-weight: 400; margin-bottom: 0.5rem; line-height: 1.2; }
+.onboard-sub { font-size: 0.875rem; color: var(--muted); margin-bottom: 2rem; }
+.income-input-wrap { position: relative; margin-bottom: 1.5rem; }
+.income-symbol {
+  position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+  font-size: 1.1rem; font-weight: 600; color: var(--muted);
+}
+.income-input {
+  width: 100%; padding: 0.9rem 1rem 0.9rem 2.2rem;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text);
+  font-size: 1.5rem; font-weight: 600;
+  outline: none; transition: border-color 0.15s;
+}
+.income-input:focus { border-color: var(--accent-t); }
+.cat-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.75rem; font-weight: 500; }
+.fixed-cats { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+.cat-chip {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 0.78rem; padding: 0.35rem 0.75rem;
+  border-radius: 100px; border: 1px solid var(--border);
+  color: var(--muted); background: var(--surface2);
+  transition: all 0.15s;
+}
+.cat-chip.fixed { color: var(--amber); border-color: rgba(251,191,36,0.25); }
+.cat-chip.selected { color: var(--accent-t); border-color: var(--accent-b); background: var(--accent-d); }
+.cat-chip button { background: none; border: none; color: inherit; padding: 0; font-size: 0.9rem; line-height: 1; }
+.add-cat-row { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+.add-cat-row input {
+  flex: 1; padding: 0.5rem 0.75rem;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); outline: none;
+}
+.add-cat-row input:focus { border-color: var(--accent-t); }
+.btn-sm {
+  padding: 0.5rem 1rem; border-radius: 7px;
+  background: var(--accent); color: #fff; border: none;
+  font-size: 0.8rem; font-weight: 500; transition: background 0.15s;
+}
+.btn-sm:hover { background: var(--accent-h); }
+
+/* ─── APP SHELL ──────────────────────────────── */
+.app-shell { display: flex; height: 100vh; overflow: hidden; }
+
+/* ─── SIDEBAR ────────────────────────────────── */
+.sidebar {
+  width: 220px; flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 0;
+  overflow-y: auto;
+}
+.sidebar-top {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.sidebar-logo {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.05rem; display: flex; align-items: center; gap: 7px;
+}
+.sidebar-logo-mark {
+  width: 22px; height: 22px; background: var(--accent);
+  border-radius: 6px; display: flex; align-items: center; justify-content: center;
+}
+.sidebar-logo-mark svg { width: 11px; height: 11px; }
+.sidebar-nav { flex: 1; padding: 0.75rem 0.5rem; }
+.nav-section-label {
+  font-size: 0.62rem; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--muted2);
+  padding: 0.75rem 0.6rem 0.3rem;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 0.55rem 0.6rem; border-radius: 7px;
+  color: var(--muted); font-size: 0.83rem; font-weight: 400;
+  cursor: pointer; transition: all 0.15s; border: 1px solid transparent;
+  background: none; width: 100%; text-align: left;
+  margin-bottom: 1px;
+}
+.nav-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+.nav-item:hover { color: var(--text); background: var(--surface2); }
+.nav-item.active {
+  color: var(--text); background: var(--surface2);
+  border-color: var(--border);
+}
+.nav-item.active svg { color: var(--accent-t); }
+.sidebar-bottom {
+  padding: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.user-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0.5rem 0.5rem;
+}
+.user-av {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: var(--accent-d); border: 1px solid var(--accent-b);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; color: var(--accent-t); font-weight: 700;
+  flex-shrink: 0;
+}
+.user-name { font-size: 0.8rem; font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-income { font-size: 0.68rem; color: var(--muted); }
+.btn-logout {
+  background: none; border: none;
+  color: var(--muted); font-size: 0.75rem;
+  padding: 0.25rem; transition: color 0.15s;
+}
+.btn-logout:hover { color: var(--red); }
+
+/* ─── MAIN CONTENT ───────────────────────────── */
+.main-content { flex: 1; overflow-y: auto; background: var(--bg); }
+.page { padding: 2rem; max-width: 1000px; }
+.page-header { margin-bottom: 2rem; }
+.page-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.8rem; font-weight: 400; letter-spacing: -0.5px;
+  margin-bottom: 0.25rem;
+}
+.page-sub { font-size: 0.85rem; color: var(--muted); }
+
+/* ─── STATS GRID ─────────────────────────────── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1.25rem;
+}
+.stat-label { font-size: 0.72rem; color: var(--muted); margin-bottom: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.5px; }
+.stat-sub { font-size: 0.72rem; margin-top: 4px; }
+.green-t { color: var(--accent-t); }
+.red-t { color: var(--red); }
+.amber-t { color: var(--amber); }
+
+/* ─── CARDS ──────────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;
+}
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.card-title { font-size: 0.85rem; font-weight: 600; }
+.card-action {
+  font-size: 0.75rem; color: var(--accent-t); background: none;
+  border: none; padding: 0; transition: opacity 0.15s;
+}
+.card-action:hover { opacity: 0.7; }
+
+/* ─── TASK ITEMS ─────────────────────────────── */
+.task-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 0.75rem 0; border-bottom: 1px solid var(--border);
+}
+.task-item:last-child { border-bottom: none; padding-bottom: 0; }
+.task-check {
+  width: 16px; height: 16px; border-radius: 4px;
+  border: 1.5px solid var(--border-h); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s; margin-top: 1px;
+  background: none;
+}
+.task-check.done { background: var(--accent); border-color: var(--accent); }
+.task-check.done::after { content: '✓'; font-size: 9px; color: #fff; }
+.task-text { flex: 1; }
+.task-name { font-size: 0.85rem; font-weight: 400; }
+.task-name.done { text-decoration: line-through; color: var(--muted); }
+.task-meta { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
+.priority-badge {
+  font-size: 0.65rem; font-weight: 600; padding: 2px 7px;
+  border-radius: 4px; flex-shrink: 0; margin-top: 2px;
+}
+.p-high { background: rgba(248,113,113,0.12); color: var(--red); }
+.p-med  { background: rgba(251,191,36,0.1);  color: var(--amber); }
+.p-low  { background: rgba(74,222,128,0.1);  color: var(--accent-t); }
+.task-del {
+  background: none; border: none; color: var(--muted2);
+  font-size: 1rem; padding: 0 2px; transition: color 0.15s;
+}
+.task-del:hover { color: var(--red); }
+
+/* ─── FORM ───────────────────────────────────── */
+.add-form {
+  display: flex; flex-wrap: wrap; gap: 0.6rem;
+  padding: 1rem; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 10px;
+  margin-bottom: 1rem;
+}
+.add-form input, .add-form select {
+  flex: 1; min-width: 120px; padding: 0.55rem 0.75rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text); outline: none;
+  transition: border-color 0.15s;
+}
+.add-form input:focus, .add-form select:focus { border-color: var(--accent-t); }
+.add-form select option { background: var(--surface2); }
+
+/* ─── EXPENSE ITEM ───────────────────────────── */
+.expense-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0.75rem 0; border-bottom: 1px solid var(--border);
+}
+.expense-item:last-child { border-bottom: none; }
+.expense-icon {
+  width: 34px; height: 34px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; flex-shrink: 0;
+}
+.expense-info { flex: 1; }
+.expense-name { font-size: 0.85rem; font-weight: 500; }
+.expense-cat { font-size: 0.72rem; color: var(--muted); }
+.expense-fixed-tag { font-size: 0.62rem; color: var(--amber); background: rgba(251,191,36,0.1); border-radius: 3px; padding: 1px 5px; margin-left: 5px; }
+.expense-amount { font-size: 0.9rem; font-weight: 600; color: var(--red); }
+.expense-date { font-size: 0.7rem; color: var(--muted); }
+
+/* ─── GOAL ITEM ──────────────────────────────── */
+.goal-item { padding: 1rem 0; border-bottom: 1px solid var(--border); }
+.goal-item:last-child { border-bottom: none; }
+.goal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.goal-name { font-size: 0.875rem; font-weight: 500; }
+.goal-amounts { font-size: 0.78rem; color: var(--muted); }
+.goal-pct { font-size: 0.78rem; color: var(--accent-t); font-weight: 600; }
+.progress-track { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.5s ease; }
+.goal-deadline { font-size: 0.7rem; color: var(--muted); margin-top: 5px; }
+
+/* ─── AI RECOMMENDATIONS ─────────────────────── */
+.ai-card {
+  background: linear-gradient(135deg, rgba(1,66,33,0.12), rgba(1,66,33,0.06));
+  border: 1px solid var(--accent-b);
+  border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;
+}
+.ai-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; }
+.ai-badge { font-size: 0.62rem; background: var(--accent-d); color: var(--accent-t); border: 1px solid var(--accent-b); border-radius: 4px; padding: 2px 7px; font-weight: 700; letter-spacing: 0.05em; }
+.ai-card-title { font-size: 0.85rem; font-weight: 600; }
+.ai-card-body { font-size: 0.85rem; color: var(--muted); line-height: 1.7; }
+.ai-card-body strong { color: var(--text); font-weight: 500; }
+.ai-card-body .ht { color: var(--accent-t); }
+.ai-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+.ai-chip {
+  font-size: 0.72rem; padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border); border-radius: 100px;
+  color: var(--muted); transition: all 0.15s;
+}
+.ai-chip:hover { border-color: var(--border-h); color: var(--text); }
+.ai-loading {
+  text-align: center; padding: 2rem;
+  color: var(--muted); font-size: 0.85rem;
+}
+.ai-spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent-t);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin: 0 auto 0.75rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── CHART CONTAINER ────────────────────────── */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+.chart-title { font-size: 0.82rem; font-weight: 600; margin-bottom: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.chart-toggle { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.toggle-btn { font-size: 0.75rem; padding: 0.3rem 0.75rem; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--muted); transition: all 0.15s; }
+.toggle-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ─── MOBILE NAV ─────────────────────────────── */
+.mobile-nav {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding: 0.5rem 0; z-index: 50;
+}
+.mobile-nav-inner { display: flex; justify-content: space-around; }
+.mobile-nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-size: 0.65rem; color: var(--muted); cursor: pointer;
+  background: none; border: none; padding: 0.35rem 0.75rem;
+  transition: color 0.15s;
+}
+.mobile-nav-item svg { width: 18px; height: 18px; }
+.mobile-nav-item.active { color: var(--accent-t); }
+
+/* ─── RESPONSIVE ─────────────────────────────── */
+@media (max-width: 700px) {
+  .sidebar { display: none; }
+  .mobile-nav { display: block; }
+  .main-content { padding-bottom: 70px; }
+  .chart-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .page { padding: 1.25rem; }
+}
+
+/* ─── MISC UTILS ─────────────────────────────── */
+.row { display: flex; gap: 1rem; }
+.row > * { flex: 1; }
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); font-size: 0.85rem; }
+.empty-icon { font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.4; }
+.divider-line { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- ─────────────────────────────────────────────────
+     FIREBASE INITIALISATION
+     ⚠️  Replace the placeholder values below with
+     your actual Firebase project config. You get
+     this from Firebase Console →
+       Project Settings → Your apps → Web app → SDK
+─────────────────────────────────────────────────── -->
+<script>
+  const firebaseConfig = {
+     apiKey: "AIzaSyD0NU4n7UdvWMUzc6k3A7ubsiCNC5Ndl0w",           // Firebase Web API key
+    authDomain: "finsight-3d19b.firebaseapp.com",
+   projectId: "finsight-3d19b",        // e.g. finsight-hacktoon
+    storageBucket: "finsight-3d19b.firebasestorage.app",
+   messagingSenderId: "657011530322",
+    appId: "1:657011530322:web:90d39782e838ab2ce05d8b",
+  };
+
+  // Initialise Firebase only once
+  firebase.initializeApp(firebaseConfig);
+
+  // Expose singletons so React components can import them
+  window.db   = firebase.firestore();   // Firestore database instance
+  window.auth = firebase.auth();        // Auth instance for email/password
+</script>
+
+<!-- ─────────────────────────────────────────────────
+     REACT APP  (JSX transpiled by Babel in-browser)
+─────────────────────────────────────────────────── -->
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+// ─── Pull Recharts components from the UMD global ───
+const {
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid
+} = Recharts;
+
+// ─── GROQ AI helper ─────────────────────────────────
+// Calls the Groq chat completions endpoint.
+// We use the llama3-70b model which is fast and free-tier.
+// NOTE: In production, move this call to a Firebase Cloud
+//       Function so the API key isn't exposed in the browser.
+const GROQ_API_KEY = "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"; // ← replace with your key
+
+async function askGroq(systemPrompt, userPrompt) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${GROQ_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: "llama3-70b-8192",          // fast, generous free tier
+      temperature: 0.7,
+      max_tokens: 1024,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user",   content: userPrompt   }
+      ]
+    })
+  });
+  const data = await res.json();
+  // Return the text content from the first choice
+  return data.choices?.[0]?.message?.content ?? "No response from AI.";
+}
+
+// ─── CATEGORY CONFIG ────────────────────────────────
+// isFixed = true means the user CANNOT be told to cut it
+const DEFAULT_CATEGORIES = [
+  { name: "Food & Dining",  emoji: "🍽️", isFixed: false },
+  { name: "Transport",      emoji: "🚌", isFixed: false },
+  { name: "Health",         emoji: "💊", isFixed: false },
+  { name: "Subscriptions",  emoji: "📱", isFixed: false },
+  { name: "Rent / EMI",     emoji: "🏠", isFixed: true  }, // always non-negotiable
+  { name: "Utilities",      emoji: "💡", isFixed: true  },
+  { name: "Education",      emoji: "📚", isFixed: false },
+];
+
+// Colour palette for pie/bar charts
+const CHART_COLORS = ["#4ade80","#60a5fa","#f87171","#fbbf24","#a78bfa","#34d399","#fb923c","#e879f9"];
+
+// ─── UTILITY: format currency ──────────────────────
+const fmt = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
+
+// ─────────────────────────────────────────────────────
+// ─── AUTH SCREEN ─────────────────────────────────────
+// ─────────────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+  const [mode,  setMode]  = useState("login");  // "login" | "signup"
+  const [email, setEmail] = useState("");
+  const [pass,  setPass]  = useState("");
+  const [name,  setName]  = useState("");
+  const [err,   setErr]   = useState("");
+  const [busy,  setBusy]  = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setErr(""); setBusy(true);
+    try {
+      if (mode === "signup") {
+        // Create a new account with email + password
+        const cred = await auth.createUserWithEmailAndPassword(email, pass);
+        // Store user display name in Firestore profile doc
+        await db.collection("users").doc(cred.user.uid).set({
+          name, email, income: 0, categories: DEFAULT_CATEGORIES,
+          onboarded: false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        // Sign in to existing account
+        await auth.signInWithEmailAndPassword(email, pass);
+      }
+      // onAuth will be called by the auth state listener in App
+    } catch (ex) {
+      setErr(ex.message); // Show Firebase error messages to user
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <div className="auth-logo-mark">
+            <svg viewBox="0 0 12 12" fill="none">
+              <path d="M2 10L6 2L10 10" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M3.5 7.5h5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+          Finsight
+        </div>
+        <div className="auth-title">{mode === "login" ? "Welcome back" : "Create your account"}</div>
+        <div className="auth-sub">{mode === "login" ? "Sign in to your dashboard" : "Free forever. No credit card needed."}</div>
+        {err && <div className="auth-err">{err}</div>}
+        <form onSubmit={handleSubmit}>
+          {mode === "signup" && (
+            <div className="field">
+              <label>Your name</label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Sarah Mathew" required />
+            </div>
+          )}
+          <div className="field">
+            <label>Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" required />
+          </div>
+          <div className="field">
+            <label>Password</label>
+            <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••" required minLength={6} />
+          </div>
+          <button type="submit" className="btn-full" disabled={busy}>
+            {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+          </button>
+        </form>
+        <div className="auth-switch">
+          {mode === "login" ? "Don't have an account? " : "Already have an account? "}
+          <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setErr(""); }}>
+            {mode === "login" ? "Sign up" : "Sign in"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// ─── ONBOARDING ───────────────────────────────────────
+// Collects monthly income + expense categories.
+// Runs once after first sign-up.
+// ─────────────────────────────────────────────────────
+function Onboarding({ user, profile, onDone }) {
+  const [step,      setStep]      = useState(1);           // 1 = income, 2 = categories
+  const [income,    setIncome]    = useState("");
+  const [cats,      setCats]      = useState(DEFAULT_CATEGORIES);
+  const [newCat,    setNewCat]    = useState("");
+  const [busy,      setBusy]      = useState(false);
+
+  // Toggle a category on/off
+  function toggleCat(name) {
+    setCats(prev => prev.map(c => c.name === name ? { ...c, selected: !c.selected } : c));
+  }
+
+  // Add a custom category the user types in
+  function addCustomCat() {
+    const trimmed = newCat.trim();
+    if (!trimmed || cats.find(c => c.name === trimmed)) return;
+    setCats(prev => [...prev, { name: trimmed, emoji: "📂", isFixed: false, selected: true }]);
+    setNewCat("");
+  }
+
+  // Remove a non-fixed category
+  function removeCat(name) {
+    setCats(prev => prev.filter(c => c.name !== name || c.isFixed));
+  }
+
+  async function saveAndFinish() {
+    setBusy(true);
+    const selectedCats = cats.filter(c => c.selected !== false); // keep defaults unless toggled off
+    // Save income + categories to Firestore user profile
+    await db.collection("users").doc(user.uid).update({
+      income: Number(income),
+      categories: selectedCats,
+      onboarded: true
+    });
+    onDone();
+    setBusy(false);
+  }
+
+  return (
+    <div className="onboard-wrap">
+      <div className="onboard-card">
+        <div className="onboard-step">Step {step} of 2</div>
+
+        {step === 1 && (
+          <>
+            <div className="onboard-title">What's your monthly income?</div>
+            <div className="onboard-sub">This helps Finsight give you accurate budget recommendations. You can change it anytime.</div>
+            <div className="income-input-wrap">
+              <span className="income-symbol">₹</span>
+              <input
+                className="income-input"
+                type="number"
+                placeholder="0"
+                value={income}
+                onChange={e => setIncome(e.target.value)}
+              />
+            </div>
+            <button className="btn-full" disabled={!income || Number(income) <= 0} onClick={() => setStep(2)}>
+              Continue
+            </button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <div className="onboard-title">Pick your expense categories</div>
+            <div className="onboard-sub">We'll track spending in these buckets. 🟡 Fixed categories (like Rent) are non-negotiable — AI won't suggest cutting them.</div>
+
+            <div className="cat-label">Categories</div>
+            <div className="fixed-cats">
+              {cats.map(cat => (
+                <div
+                  key={cat.name}
+                  className={`cat-chip ${cat.isFixed ? "fixed" : ""} ${cat.selected !== false ? "selected" : ""}`}
+                  onClick={() => !cat.isFixed && toggleCat(cat.name)}
+                  style={{ cursor: cat.isFixed ? "default" : "pointer" }}
+                >
+                  {cat.emoji} {cat.name}
+                  {/* Show remove button only on custom (non-fixed) categories */}
+                  {!cat.isFixed && cat.selected !== false && (
+                    <button onClick={(e) => { e.stopPropagation(); removeCat(cat.name); }}>×</button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add a custom category */}
+            <div className="cat-label">Add custom category</div>
+            <div className="add-cat-row">
+              <input
+                placeholder="e.g. Gym, Books…"
+                value={newCat}
+                onChange={e => setNewCat(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addCustomCat()}
+              />
+              <button className="btn-sm" onClick={addCustomCat}>Add</button>
+            </div>
+
+            <button className="btn-full" disabled={busy} onClick={saveAndFinish}>
+              {busy ? "Saving…" : "Go to dashboard →"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// ─── DASHBOARD PAGE ───────────────────────────────────
+// Shows summary stats, recent tasks, recent expenses.
+// ─────────────────────────────────────────────────────
+function Dashboard({ user, profile, tasks, expenses, goals }) {
+  // Compute total spending this month
+  const now = new Date();
+  const monthExpenses = expenses.filter(e => {
+    const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const totalSpent = monthExpenses.reduce((s, e) => s + e.amount, 0);
+  const remaining  = (profile.income || 0) - totalSpent;
+  const todayTasks = tasks.filter(t => !t.done).length;
+  const goalAvg    = goals.length
+    ? Math.round(goals.reduce((s, g) => s + (g.saved / g.target) * 100, 0) / goals.length)
+    : 0;
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div className="page-title">Good {getGreeting()}, {profile.name?.split(" ")[0] || "there"}</div>
+        <div className="page-sub">Here's your financial snapshot for {now.toLocaleString("en-IN", { month: "long", year: "numeric" })}</div>
+      </div>
+
+      {/* ── Key metric cards ── */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-label">Monthly income</div>
+          <div className="stat-value">{fmt(profile.income || 0)}</div>
+          <div className="stat-sub" style={{color:"var(--muted)"}}>Your declared salary</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Spent this month</div>
+          <div className="stat-value">{fmt(totalSpent)}</div>
+          <div className={`stat-sub ${totalSpent > (profile.income||0) * 0.8 ? "red-t" : "green-t"}`}>
+            {totalSpent > (profile.income||0) * 0.8 ? "⚠ Over 80% of income" : "Within budget"}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Remaining</div>
+          <div className={`stat-value ${remaining < 0 ? "red-t" : "green-t"}`}>{fmt(Math.abs(remaining))}</div>
+          <div className="stat-sub" style={{color:"var(--muted)"}}>{remaining < 0 ? "Over budget!" : "Left to spend/save"}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Pending tasks</div>
+          <div className="stat-value">{todayTasks}</div>
+          <div className="stat-sub amber-t">{todayTasks > 0 ? "Need attention" : "All done!"}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Goal progress</div>
+          <div className="stat-value">{goalAvg}%</div>
+          <div className="stat-sub green-t">Avg across all goals</div>
+        </div>
+      </div>
+
+      {/* ── Recent tasks ── */}
+      <div className="card">
+        <div className="card-header">
+          <div className="card-title">Recent Tasks</div>
+        </div>
+        {tasks.slice(0, 4).length === 0
+          ? <div className="empty-state"><div className="empty-icon">✅</div>No tasks yet. Add some!</div>
+          : tasks.slice(0, 4).map(t => (
+            <div key={t.id} className="task-item">
+              <div className={`task-check ${t.done ? "done" : ""}`} />
+              <div className="task-text">
+                <div className={`task-name ${t.done ? "done" : ""}`}>{t.name}</div>
+                {t.deadline && <div className="task-meta">Due {t.deadline}</div>}
+              </div>
+              <span className={`priority-badge p-${t.priority}`}>{t.priority}</span>
+            </div>
+          ))
+        }
+      </div>
+
+      {/* ── Recent expenses ── */}
+      <div className="card">
+        <div className="card-header">
+          <div className="card-title">Recent Expenses</div>
+        </div>
+        {expenses.slice(0, 4).length === 0
+          ? <div className="empty-state"><div className="empty-icon">💸</div>No expenses logged yet.</div>
+          : expenses.slice(0, 4).map(e => (
+            <div key={e.id} className="expense-item">
+              <div className="expense-icon" style={{background:"var(--surface2)"}}>{e.emoji || "📂"}</div>
+              <div className="expense-info">
+                <div className="expense-name">
+                  {e.name}
+                  {e.isFixed && <span className="expense-fixed-tag">Fixed</span>}
+                </div>
+                <div className="expense-cat">{e.category}</div>
+              </div>
+              <div>
+                <div className="expense-amount">-{fmt(e.amount)}</div>
+                <div className="expense-date">{formatDate(e.date)}</div>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// ─── TASKS PAGE ───────────────────────────────────────
+// Add / complete / delete tasks.
+// AI auto-assigns a priority based on deadline + description.
+// ─────────────────────────────────────────────────────
+function TasksPage({ user, tasks, setTasks }) {
+  const [name,     setName]     = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [priority, setPriority] = useState("med");
+  const [busy,     setBusy]     = useState(false);
+
+  async function addTask() {
+    if (!name.trim()) return;
+    setBusy(true);
+    const task = {
+      name: name.trim(),
+      deadline: deadline || null,
+      priority,              // user can override AI suggestion
+      done: false,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    // Write to Firestore under /users/{uid}/tasks/{auto-id}
+    const ref = await db.collection("users").doc(user.uid).collection("tasks").add(task);
+    setTasks(prev => [{ id: ref.id, ...task }, ...prev]);
+    setName(""); setDeadline(""); setPriority("med");
+    setBusy(false);
+  }
+
+  async function toggleDone(task) {
+    // Toggle the done field both locally and in Firestore
+    await db.collection("users").doc(user.uid).collection("tasks").doc(task.id).update({ done: !task.done });
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, done: !t.done } : t));
+  }
+
+  async function deleteTask(id) {
+    await db.collection("users").doc(user.uid).collection("tasks").doc(id).delete();
+    setTasks(prev => prev.filter(t => t.id !== id));
+  }
+
+  // Sort: pending first, then by priority (high → med → low), then done
+  const sorted = [...tasks].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    const pOrder = { high: 0, med: 1, low: 2 };
+    return (pOrder[a.priority] ?? 1) - (pOrder[b.priority] ?? 1);
+  });
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div className="page-title">Smart Tasks</div>
+        <div className="page-sub">AI-sorted by priority and deadline</div>
+      </div>
+
+      {/* Add task form */}
+      <div className="add-form">
+        <input placeholder="Task name…" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === "Enter" && addTask()} style={{flex:2}} />
+        <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} />
+        <select value={priority} onChange={e => setPriority(e.target.value)}>
+          <option value="high">High priority</option>
+          <option value="med">Med priority</option>
+          <option value="low">Low priority</option>
+        </select>
+        <button className="btn-sm" onClick={addTask} disabled={busy || !name.trim()}>
+          {busy ? "…" : "+ Add"}
+        </button>
+      </div>
+
+      <div className="card">
+        {sorted.length === 0
+          ? <div className="empty-state"><div className="empty-icon">✅</div>No tasks yet. Add your first one above!</div>
+          : sorted.map(t => (
+            <div key={t.id} className="task-item">
+              <button className={`task-check ${t.done ? "done" : ""}`} onClick={() => toggleDone(t)} />
+              <div className="task-text">
+                <div className={`task-name ${t.done ? "done" : ""}`}>{t.name}</div>
+                {t.deadline && <div className="task-meta">📅 Due {t.deadline}</div>}
+              </div>
+              <span className={`priority-badge p-${t.priority}`}>{t.priority}</span>
+              <button className="task-del" onClick={() => deleteTask(t.id)}>×</button>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// ─── EXPENSES PAGE ────────────────────────────────────
+// Log expenses with category. Fixed categories are tagged.
+// ─────────────────────────────────────────────────────
+function ExpensesPage({ user, profile, expenses, setExpenses }) {
+  const [name,   setName]   = useState("");
+  const [amount, setAmount] = useState("");
+  const [cat,    setCat]    = useState(profile.categories?.[0]?.name || "Food & Dining");
+  const [busy,   setBusy]   = useState(false);
+
+  const catMap = {};
+  (profile.categories || DEFAULT_CATEGORIES).forEach(c => { catMap[c.name] = c; });
+
+  async function addExpense() {
+    if (!name.trim() || !amount) return;
+    setBusy(true);
+    const catInfo = catMap[cat] || {};
+    const expense = {
+      name: name.trim(),
+      amount: Number(amount),
+      category: cat,
+      emoji: catInfo.emoji || "📂",
+      isFixed: catInfo.isFixed || false,
+      date: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    // Write expense to /users/{uid}/expenses/{auto-id}
+    const ref = await db.collection("users").doc(user.uid).collection("expenses").add(expense);
+    setExpenses(prev => [{ id: ref.id, ...expense, date: new Date() }, ...prev]);
+    setName(""); setAmount("");
+    setBusy(false);
+  }
+
+  async function deleteExpense(id) {
+    await db.collection("users").doc(user.uid).collection("expenses").doc(id).delete();
+    setExpenses(prev => prev.filter(e => e.id !== id));
+  }
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div className="page-title">Expense Log</div>
+        <div className="page-sub">Track every rupee. Fixed expenses are non-negotiable.</div>
+      </div>
+
+      <div className="add-form">
+        <input placeholder="What did you spend on?" value={name} onChange={e => setName(e.target.value)} style={{flex:2}} />
+        <input type="number" placeholder="Amount (₹)" value={amount} onChange={e => setAmount(e.target.value)} />
+        <select value={cat} onChange={e => setCat(e.target.value)}>
+          {(profile.categories || DEFAULT_CATEGORIES).map(c => (
+            <option key={c.name} value={c.name}>{c.isFixed ? "🔒 " : ""}{c.emoji} {c.name}</option>
+          ))}
+        </select>
+        <button className="btn-sm" onClick={addExpense} disabled={busy || !name.trim() || !amount}>
+          {busy ? "…" : "+ Log"}
+        </button>
+      </div>
+
+      <div className="card">
+        {expenses.length === 0
+          ? <div className="empty-state"><div className="empty-icon">💸</div>No expenses yet. Log your first one!</div>
+          : expenses.map(e => (
+            <div key={e.id} className="expense-item">
+              <div className="expense-icon" style={{background:"var(--surface2)"}}>{e.emoji}</div>
+              <div className="expense-info">
+                <div className="expense-name">
+                  {e.name}
+                  {e.isFixed && <span className="expense-fixed-tag">Fixed</span>}
+                </div>
+                <div className="expense-cat">{e.category}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div className="expense-amount">-{fmt(e.amount)}</div>
+                <div className="expense-date">{formatDate(e.date)}</div>
+              </div>
+              <button className="task-del" onClick={() => deleteExpense(e.id)}>×</button>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// ─── GOALS PAGE ───────────────────────────────────────
+// Create savings goals. Manual "top-up" to track progress.
+// ─────────────────────────────────────────────────────
+function GoalsPage({ user, goals, setGoals }) {
+  const [name,     setName]     = useState("");
+  const [target,   setTarget]   = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [busy,     setBusy]     = useState(false);
+  const [addAmt,   setAddAmt]   = useState({});  // {goalId: amount}
+
+  async function addGoal() {
+    if (!name.trim() || !target) return;
+    setBusy(true);
+    const goal = { name: name.trim(), target: Number(target), saved: 0, deadline: deadline || null, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+    const ref = await db.collection("users").doc(user.uid).collection("goals").add(goal);
+    setGoals(prev => [{ id: ref.id, ...goal }, ...prev]);
+    setName(""); setTarget(""); setDeadline("");
+    setBusy(false);
+  }
+
+  // Add savings amount to a goal
+  async function topUp(goal) {
+    const amt = Number(addAmt[goal.id] || 0);
+    if (!amt) return;
+    const newSaved = Math.min(goal.target, goal.saved + amt);
+    await db.collection("users").doc(user.uid).collection("goals").doc(goal.id).update({ saved: newSaved });
+    setGoals(prev => prev.map(g => g.id === goal.id ? { ...g, saved: newSaved } : g));
+    setAddAmt(prev => ({ ...prev, [goal.id]: "" }));
+  }
+
+  async function deleteGoal(id) {
+    await db.collection("users").doc(user.uid).collection("goals").doc(id).delete();
+    setGoals(prev => prev.filter(g => g.id !== id));
+  }
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div className="page-title">Goals</div>
+        <div className="page-sub">Set targets and track your savings progress</div>
+      </div>
+
+      <div className="add-form">
+        <input placeholder="Goal name (e.g. Trip to Goa)" value={name} onChange={e => setName(e.target.value)} style={{flex:2}} />
+        <input type="number" placeholder="Target (₹)" value={target} onChange={e => setTarget(e.target.value)} />
+        <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} />
+        <button className="btn-sm" onClick={addGoal} disabled={busy || !name.trim() || !target}>
+          {busy ? "…" : "+ Add Goal"}
+        </button>
+      </div>
+
+      <div className="card">
+        {goals.length === 0
+          ? <div className="empty-state"><div className="empty-icon">🎯</div>No goals yet. Create your first savings goal!</div>
+          : goals.map(g => {
+            const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
+            return (
+              <div key={g.id} className="goal-item">
+                <div className="goal-top">
+                  <div className="goal-name">{g.name}</div>
+                  <div style={{display:"flex", gap:"0.5rem", alignItems:"center"}}>
+                    <div className="goal-pct">{pct}%</div>
+                    <button className="task-del" onClick={() => deleteGoal(g.id)}>×</button>
+                  </div>
+                </div>
+                <div className="goal-amounts">{fmt(g.saved)} saved of {fmt(g.target)}</div>
+                <div className="progress-track" style={{margin:"8px 0"}}>
+                  <div className="progress-fill" style={{width: `${pct}%`, background: pct === 100 ? "var(--accent-t)" : "var(--accent)"}} />
+                </div>
+                {g.deadline && <div className="goal-deadline">🗓 Target date: {g.deadline}</div>}
+
+                {/* Manual top-up row */}
+                {pct < 100 && (
+                  <div style={{display:"flex", gap:"0.5rem", marginTop:"0.75rem"}}>
+                    <input
+                      type="number" placeholder="Add ₹ savings"
+                      value={addAmt[g.id] || ""}
+                      onChange={e => setAddAmt(prev => ({ ...prev, [g.id]: e.target.value }))}
+                      style={{flex:1, padding:"0.4rem 0.6rem", background:"var(--surface2)", border:"1px solid var(--border)", borderRadius:"6px", color:"var(--text)", outline:"none"}}
+                    />
+                    <button className="btn-sm" onClick={() => topUp(g)}>Save</button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        }
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// ─── CHARTS PAGE ──────────────────────────────────────
+// Weekly + monthly pie and bar charts built with Recharts.
+// ─────────────────────────────────────────────────────
+function ChartsPage({ profile, expenses }) {
+  const [view, setView] = useState("monthly"); // "weekly" | "monthly"
+
+  const now = new Date();
+
+  // Filter expenses by week or month
+  const filtered = expenses.filter(e => {
+    const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+    if (view === "monthly") {
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    } else {
+      // Current ISO week: Monday – Sunday
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+      startOfWeek.setHours(0,0,0,0);
+      return d >= startOfWeek;
+    }
+  });
+
+  // Aggregate by category for pie chart
+  const byCat = {};
+  filtered.forEach(e => {
+    byCat[e.category] = (byCat[e.category] || 0) + e.amount;
+  });
+  const pieData = Object.entries(byCat).map(([name, value]) => ({ name, value }));
+
+  // Aggregate by day for bar chart (last 7 days or last 30 days)
+  const days = view === "weekly" ? 7 : 30;
+  const barData = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const label = d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    const total = filtered.filter(e => {
+      const ed = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      return ed.toDateString() === d.toDateString();
+    }).reduce((s, e) => s + e.amount, 0);
+    barData.push({ label, total });
+  }
+
+  const totalSpent = filtered.reduce((s, e) => s + e.amount, 0);
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div className="page-title">Spending Charts</div>
+        <div className="page-sub">Visual breakdown of where your money goes</div>
+      </div>
+
+      {/* Week / Month toggle */}
+      <div className="chart-toggle" style={{marginBottom:"1.5rem"}}>
+        <button className={`toggle-btn ${view === "weekly" ? "active" : ""}`} onClick={() => setView("weekly")}>This Week</button>
+        <button className={`toggle-btn ${view === "monthly" ? "active" : ""}`} onClick={() => setView("monthly")}>This Month</button>
+      </div>
+
+      <div className="stats-grid" style={{marginBottom:"1.5rem"}}>
+        <div className="stat-card">
+          <div className="stat-label">Total spent ({view})</div>
+          <div className="stat-value">{fmt(totalSpent)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Budget</div>
+          <div className="stat-value">{fmt(profile.income || 0)}</div>
+          <div className={`stat-sub ${totalSpent > (profile.income||0) ? "red-t" : "green-t"}`}>
+            {totalSpent > (profile.income||0) ? "Over budget" : `${fmt((profile.income||0) - totalSpent)} left`}
+          </div>
+        </div>
+      </div>
+
+      <div className="chart-grid">
+        {/* Pie chart by category */}
+        <div className="chart-card">
+          <div className="chart-title">By category</div>
+          {pieData.length === 0
+            ? <div className="empty-state" style={{padding:"2rem 0"}}>No data yet</div>
+            : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
+                    {pieData.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v) => fmt(v)} contentStyle={{background:"var(--surface)", border:"1px solid var(--border)", borderRadius:"8px", fontSize:"0.78rem"}} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{fontSize:"0.72rem"}} />
+                </PieChart>
+              </ResponsiveContainer>
+            )
+          }
+        </div>
+
+        {/* Bar chart day-by-day */}
+        <div className="chart-card">
+          <div className="chart-title">Day-by-day spending</div>
+          {barData.every(d => d.total === 0)
+            ? <div className="empty-state" style={{padding:"2rem 0"}}>No data yet</div>
+            : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={barData} margin={{top:0, right:0, left:-20, bottom:0}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="label" tick={{fontSize:9, fill:"var(--muted)"}} tickLine={false} axisLine={false} interval={view === "monthly" ? 4 : 0} />
+                  <YAxis tick={{fontSize:9, fill:"var(--muted)"}} tickLine={false} axisLine={false} tickFormatter={v => `₹${v}`} />
+                  <Tooltip formatter={(v) => fmt(v)} contentStyle={{background:"var(--surface)", border:"1px solid var(--border)", borderRadius:"8px", fontSize:"0.78rem"}} />
+                  <Bar dataKey="total" fill="var(--accent)" radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// ─── AI RECOMMENDATIONS PAGE ──────────────────────────
+// Sends spending + income data to Groq and displays
+// personalised, actionable financial advice.
+// ─────────────────────────────────────────────────────
+function AIPage({ profile, expenses, goals, tasks }) {
+  const [recs,    setRecs]    = useState(null);  // null = not loaded, "" = loading
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState("");
+
+  // Build a structured summary of the user's finances to send to the AI
+  function buildContext() {
+    const now = new Date();
+    // This month's expenses
+    const monthExp = expenses.filter(e => {
+      const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+
+    // Group by category
+    const byCat = {};
+    monthExp.forEach(e => {
+      if (!byCat[e.category]) byCat[e.category] = { total: 0, isFixed: e.isFixed };
+      byCat[e.category].total += e.amount;
+    });
+
+    const catSummary = Object.entries(byCat)
+      .map(([cat, { total, isFixed }]) => `  - ${cat}: ₹${total.toLocaleString("en-IN")} (${isFixed ? "FIXED - do not suggest cutting" : "flexible"})`)
+      .join("\n");
+
+    const goalsSummary = goals
+      .map(g => `  - ${g.name}: ₹${g.saved.toLocaleString()} saved of ₹${g.target.toLocaleString()} (${Math.round(g.saved/g.target*100)}%)`)
+      .join("\n");
+
+    const totalSpent = monthExp.reduce((s, e) => s + e.amount, 0);
+
+    return `
+User Profile:
+  Monthly income: ₹${(profile.income||0).toLocaleString("en-IN")}
+  Total spent this month: ₹${totalSpent.toLocaleString("en-IN")}
+  Remaining: ₹${((profile.income||0) - totalSpent).toLocaleString("en-IN")}
+
+Spending by category this month:
+${catSummary || "  No expenses logged yet"}
+
+Savings goals:
+${goalsSummary || "  No goals set yet"}
+
+Pending tasks: ${tasks.filter(t => !t.done).length}
+    `.trim();
+  }
+
+  async function getRecommendations() {
+    setLoading(true); setError("");
+
+    // System prompt instructs the AI on tone, format, and constraints
+    const systemPrompt = `You are Finsight's AI financial advisor for Indian users.
+Rules:
+1. NEVER suggest cutting Fixed expenses (Rent/EMI, Utilities). They are non-negotiable.
+2. Give specific, actionable advice — not generic tips.
+3. Be encouraging and friendly, like a smart friend (think CRED's tone — crisp, direct, slightly witty).
+4. Format: Return exactly 3 recommendation cards. Each card has:
+   TITLE: (short, punchy)
+   INSIGHT: (1-2 sentences of analysis)
+   ACTION: (1 concrete step to take today)
+   IMPACT: (estimated monthly savings or benefit)
+5. Use ₹ for amounts. Be specific with numbers.
+6. If spending is healthy, say so clearly and suggest goal acceleration instead.`;
+
+    try {
+      const raw = await askGroq(systemPrompt, buildContext());
+      setRecs(raw);
+    } catch (e) {
+      setError("Couldn't reach AI. Check your API key and internet connection.");
+    }
+    setLoading(false);
+  }
+
+  // Parse the raw AI text into structured cards
+  // The AI returns blocks separated by TITLE:/INSIGHT:/ACTION:/IMPACT: markers
+  function parseRecs(raw) {
+    const blocks = raw.split(/(?=TITLE:)/gi).filter(b => b.trim());
+    return blocks.map(block => {
+      const get = (key) => {
+        const match = block.match(new RegExp(`${key}:\\s*(.+?)(?=\\n[A-Z]+:|$)`, "si"));
+        return match ? match[1].trim() : "";
+      };
+      return { title: get("TITLE"), insight: get("INSIGHT"), action: get("ACTION"), impact: get("IMPACT") };
+    }).filter(c => c.title);
+  }
+
+  const cards = recs ? parseRecs(recs) : [];
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div className="page-title">AI Recommendations</div>
+        <div className="page-sub">Personalised advice based on your actual spending</div>
+      </div>
+
+      {/* Trigger button */}
+      {!loading && !recs && (
+        <div className="card" style={{textAlign:"center", padding:"2.5rem"}}>
+          <div style={{fontSize:"1.5rem", marginBottom:"0.75rem"}}>✦</div>
+          <div style={{fontWeight:600, marginBottom:"0.5rem"}}>Get your personalised report</div>
+          <div style={{color:"var(--muted)", fontSize:"0.85rem", marginBottom:"1.5rem"}}>
+            Finsight's AI will analyse your income, spending, and goals to give you 3 actionable recommendations.
+            Fixed expenses like rent are never flagged for cuts.
+          </div>
+          <button className="btn-full" style={{maxWidth:280, margin:"0 auto"}} onClick={getRecommendations}>
+            Generate recommendations
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="ai-card">
+          <div className="ai-loading">
+            <div className="ai-spinner"></div>
+            Analysing your finances…
+          </div>
+        </div>
+      )}
+
+      {error && <div className="auth-err">{error}</div>}
+
+      {/* Render parsed recommendation cards */}
+      {cards.map((c, i) => (
+        <div key={i} className="ai-card">
+          <div className="ai-card-header">
+            <div className="ai-badge">AI</div>
+            <div className="ai-card-title">{c.title}</div>
+          </div>
+          <div className="ai-card-body">
+            <p>{c.insight}</p>
+            {c.action && <p style={{marginTop:"0.5rem"}}><strong>Action: </strong>{c.action}</p>}
+            {c.impact && <p style={{marginTop:"0.5rem"}}><span className="ht"><strong>Impact: </strong>{c.impact}</span></p>}
+          </div>
+        </div>
+      ))}
+
+      {/* If we got a response but couldn't parse structured cards, show raw */}
+      {recs && cards.length === 0 && (
+        <div className="ai-card">
+          <div className="ai-card-header"><div className="ai-badge">AI</div><div className="ai-card-title">Your recommendations</div></div>
+          <div className="ai-card-body" style={{whiteSpace:"pre-wrap"}}>{recs}</div>
+        </div>
+      )}
+
+      {recs && (
+        <div style={{textAlign:"center", marginTop:"1rem"}}>
+          <button className="btn-sm" onClick={() => { setRecs(null); setError(""); }}>
+            Refresh recommendations
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// ─── MAIN APP ─────────────────────────────────────────
+// Manages auth state, loads data from Firestore,
+// and renders the correct page.
+// ─────────────────────────────────────────────────────
+function App() {
+  const [authUser,  setAuthUser]  = useState(undefined); // undefined = checking, null = logged out
+  const [profile,   setProfile]   = useState(null);
+  const [tasks,     setTasks]     = useState([]);
+  const [expenses,  setExpenses]  = useState([]);
+  const [goals,     setGoals]     = useState([]);
+  const [page,      setPage]      = useState("dashboard");
+
+  // ── Listen to Firebase auth state changes ──
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged(async (user) => {
+      setAuthUser(user);
+      if (user) {
+        // Load user profile from Firestore
+        const snap = await db.collection("users").doc(user.uid).get();
+        if (snap.exists) setProfile(snap.data());
+      } else {
+        setProfile(null);
+      }
+    });
+    return unsub; // cleanup on unmount
+  }, []);
+
+  // ── Load tasks, expenses, goals when user logs in ──
+  useEffect(() => {
+    if (!authUser) return;
+
+    // Firestore real-time listeners — auto-update on any change
+    const unsubs = [
+      db.collection("users").doc(authUser.uid).collection("tasks")
+        .orderBy("createdAt", "desc")
+        .onSnapshot(snap => setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+
+      db.collection("users").doc(authUser.uid).collection("expenses")
+        .orderBy("date", "desc").limit(100)
+        .onSnapshot(snap => setExpenses(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+
+      db.collection("users").doc(authUser.uid).collection("goals")
+        .orderBy("createdAt", "desc")
+        .onSnapshot(snap => setGoals(snap.docs.map(d => ({ id: d.id, ...d.data() })))),
+    ];
+
+    return () => unsubs.forEach(u => u()); // cleanup all listeners
+  }, [authUser]);
+
+  // ── Auth loading state ──
+  if (authUser === undefined) {
+    return <div className="auth-wrap" style={{color:"var(--muted)"}}>Loading…</div>;
+  }
+
+  // ── Not logged in ──
+  if (!authUser) return <AuthScreen onAuth={() => {}} />;
+
+  // ── Logged in but not yet onboarded ──
+  if (profile && !profile.onboarded) {
+    return <Onboarding user={authUser} profile={profile} onDone={() => setProfile(p => ({ ...p, onboarded: true }))} />;
+  }
+
+  // ── Main app ──
+  if (!profile) return <div className="auth-wrap" style={{color:"var(--muted)"}}>Loading profile…</div>;
+
+  const initials = (profile.name || "U").split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase();
+
+  // Nav items config
+  const navItems = [
+    { id: "dashboard", label: "Dashboard",   icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> },
+    { id: "tasks",     label: "Tasks",        icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
+    { id: "expenses",  label: "Expenses",     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg> },
+    { id: "goals",     label: "Goals",        icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> },
+    { id: "charts",    label: "Charts",       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
+    { id: "ai",        label: "AI Insights",  icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
+  ];
+
+  function renderPage() {
+    const props = { user: authUser, profile, tasks, setTasks, expenses, setExpenses, goals, setGoals };
+    switch (page) {
+      case "dashboard": return <Dashboard {...props} />;
+      case "tasks":     return <TasksPage {...props} />;
+      case "expenses":  return <ExpensesPage {...props} />;
+      case "goals":     return <GoalsPage {...props} />;
+      case "charts":    return <ChartsPage {...props} />;
+      case "ai":        return <AIPage {...props} />;
+      default:          return <Dashboard {...props} />;
+    }
+  }
+
+  return (
+    <div className="app-shell">
+      {/* ── SIDEBAR (desktop) ── */}
+      <aside className="sidebar">
+        <div className="sidebar-top">
+          <div className="sidebar-logo">
+            <div className="sidebar-logo-mark">
+              <svg viewBox="0 0 12 12" fill="none"><path d="M2 10L6 2L10 10" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3.5 7.5h5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            </div>
+            Finsight
+          </div>
+        </div>
+
+        <nav className="sidebar-nav">
+          <div className="nav-section-label">Overview</div>
+          {navItems.slice(0, 2).map(n => (
+            <button key={n.id} className={`nav-item ${page === n.id ? "active" : ""}`} onClick={() => setPage(n.id)}>
+              {n.icon}{n.label}
+            </button>
+          ))}
+          <div className="nav-section-label">Finance</div>
+          {navItems.slice(2, 5).map(n => (
+            <button key={n.id} className={`nav-item ${page === n.id ? "active" : ""}`} onClick={() => setPage(n.id)}>
+              {n.icon}{n.label}
+            </button>
+          ))}
+          <div className="nav-section-label">Intelligence</div>
+          {navItems.slice(5).map(n => (
+            <button key={n.id} className={`nav-item ${page === n.id ? "active" : ""}`} onClick={() => setPage(n.id)}>
+              {n.icon}{n.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className="user-row">
+            <div className="user-av">{initials}</div>
+            <div>
+              <div className="user-name">{profile.name}</div>
+              <div className="user-income">{fmt(profile.income || 0)} / mo</div>
+            </div>
+          </div>
+          <button className="btn-logout" onClick={() => auth.signOut()}>Sign out</button>
+        </div>
+      </aside>
+
+      {/* ── MAIN ── */}
+      <main className="main-content">
+        {renderPage()}
+      </main>
+
+      {/* ── MOBILE BOTTOM NAV ── */}
+      <nav className="mobile-nav">
+        <div className="mobile-nav-inner">
+          {navItems.map(n => (
+            <button key={n.id} className={`mobile-nav-item ${page === n.id ? "active" : ""}`} onClick={() => setPage(n.id)}>
+              {n.icon}{n.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+// ─── HELPER FUNCTIONS ───────────────────────────────
+
+// Returns time-of-day greeting
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "morning";
+  if (h < 17) return "afternoon";
+  return "evening";
+}
+
+// Formats a Firestore Timestamp or JS Date to "28 Mar"
+function formatDate(date) {
+  if (!date) return "";
+  const d = date?.toDate ? date.toDate() : new Date(date);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+// ─── RENDER ─────────────────────────────────────────
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

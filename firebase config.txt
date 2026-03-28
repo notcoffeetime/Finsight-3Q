@@ -1,0 +1,23 @@
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyD0NU4n7UdvWMUzc6k3A7ubsiCNC5Ndl0w",
+    authDomain: "finsight-3d19b.firebaseapp.com",
+    projectId: "finsight-3d19b",
+    storageBucket: "finsight-3d19b.firebasestorage.app",
+    messagingSenderId: "657011530322",
+    appId: "1:657011530322:web:90d39782e838ab2ce05d8b",
+    measurementId: "G-R4LYY9274C"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
